@@ -7,3 +7,4 @@ latex2sympy2-extended
 math_verify
 peft
 qwen-vl-utils
+flash-attn --no-build-isolation
