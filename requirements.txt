@@ -1,0 +1,9 @@
+trl==0.20.0
+transformers==4.53.2
+vllm
+wandb
+bitsandbytes
+latex2sympy2-extended
+math_verify
+peft
+qwen-vl-utils

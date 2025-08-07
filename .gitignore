@@ -1,0 +1,25 @@
+#Python Cache
+__pycache__/
+*.py[cod]
+*.so
+
+# Ignore .env files
+.env
+.env.*
+
+# Ignore weights and biases.
+wandb/
+**/wandb/
+
+# Ignore model checkpoint directory.
+gspo_qwen_vlm/
+
+# Ignore logs and evaluation reports.
+eval/geometry/Geo170K/
+grpo_vlm/eval/geometry/logs/
+
+# Editor/IDE junk
+.vscode/
+.idea/
+*.swp
+.DS_Store
