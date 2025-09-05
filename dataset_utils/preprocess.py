@@ -13,7 +13,7 @@ SYSTEM_PROMPT = (
 QUESTION_TEMPLATE = "{Question} Output the thinking process in <think> </think> and final answer (number) in <answer> </answer> tags."
 
 def process_example(example):
-    image_list = example["images"]
+    image_list = example["image"] if "image" in example else example["images"]
     if isinstance(image_list, PIL_Image.Image):
         example['image'] = image_list.convert("RGB") if image_list.mode != "RGB" else image_list
     elif isinstance(image_list, list) and len(image_list) == 1:
@@ -28,12 +28,13 @@ def process_example(example):
     else:
         example['image'] = None
     example['solution'] = example['answer']
+    question_text = example.get('question', example.get('problem', ''))
     example['prompt'] = [
         {
             "role": "user",
             "content": [
                 {"type": "image"},
-                {"type": "text", "text": QUESTION_TEMPLATE.format(Question=example["problem"])},
+                {"type": "text", "text": QUESTION_TEMPLATE.format(Question=question_text)},
             ],
         },
     ]
@@ -55,14 +56,15 @@ def load_processed_dataset(
         dataset_dict = {"train": raw_dataset}
 
     for split in dataset_dict:
+        to_remove = [col for col in ['images', 'answer'] if col in dataset_dict[split].column_names]
         dataset_dict[split] = dataset_dict[split].map(
             process_example,
-            remove_columns=['images', 'answer']
+            remove_columns=to_remove,
         )
     return dataset_dict["train"], dataset_dict.get("test")
 
 if __name__ == "__main__":
-    datasetID = 'DaveKevin/GeoQA-GoldenCoT' #DaveKevin/GeoQA-GoldenCoT, #lmms-lab/multimodal-open-r1-8k-verified
+    datasetID = 'phronetic-ai/MedVMCQA' #DaveKevin/GeoQA-GoldenCoT, #lmms-lab/multimodal-open-r1-8k-verified
     trainDataset, evalDataset = load_processed_dataset(dataset_name=datasetID)
 #    print(f"train dataset: {trainDataset}")
     print(f'First row of the trainDataset: {trainDataset[0]}')

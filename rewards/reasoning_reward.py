@@ -1,11 +1,16 @@
-from openai import OpenAI 
+from openai import OpenAI
 from dotenv import load_dotenv
 import os
+import logging
 import re
+from typing import List, Dict, Any
 #Load the .env file
 load_dotenv()
 apiKey = os.getenv("OPENAI_API_KEY")
 
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logger = logging.getLogger(__name__)
 def reasoningReward(completions, golden_cot, **kwargs):
     """
     Reward function that checks and evaluates the reasoning process leading to the answer by the Policy LLM. 
@@ -46,7 +51,7 @@ def reasoningReward(completions, golden_cot, **kwargs):
                     {"role": "user", "content": prompt}
                 ],
                 temperature = 0.0,
-                max_tokens = 10
+                max_tokens = 15
             )
             rawScore = response.choices[0].message.content
             cleanScore = re.search(r'\d+(\.\d+)?', rawScore)
@@ -59,4 +64,56 @@ def reasoningReward(completions, golden_cot, **kwargs):
             print(f"Error generating reasoning reward: {e}")
             reward = 0.0
         rewards.append(reward)
+    return rewards
+
+def reasoning_reward(completions: List[Dict[str, Any]], question: List[str], **kwargs) -> List[float]:
+    """
+    Use this reward function when there are no golden chains of thoughts available, and you would like to award the student model's reasoning steps,
+    Uses the LLM-as-a-Judge framework to emit unbounded rewards.
+    Args:
+        completions: List[Dict[str, Any]]
+    Returns
+        List[float]: The reward vector
+    """
+    if not apiKey:
+        logger.info('[WARNING] No API key found. In order to use this as a reward function you must provide valid API key')
+        return len(completions) * [0.0]
+    client = OpenAI(api_key=apiKey)
+    rewards = []
+    contents = [completion[0]['content'] for completion in completions]
+    template = """You are an expert evaluator a student model's reasoning process. You are not supposed to evaluate the model's correctness, rather the quality of its thoughts generated to arrive at the final answer.
+    You will have access to both the student's thinking process, and the original question asked, the goal is for you to, again not evaluate correctness of a model's response, but at the same time, don't let a model gaslight itself into providing what it thinks is the correct answer.
+    The rewards are to be disbursed in the range: [0, 1]. No additional explanation about the evaluation score is to be given, you are just to give the reward, that's it.
+
+    Here is the question:
+    {question}
+
+    Here is the model's thinking process to arrive at a solution:
+    {reasonining}
+    """
+    for content, prob in zip(contents, question):
+        chainOfThought = re.search(r'<think>.*?</think>\s', content, re.DOTALL)
+        reasoning = chainOfThought.group(1).strip() if chainOfThought else ""
+        if not reasoning:
+            rewards.append(0.0)
+            continue
+        prompt = template.format(question=prob, reasoning=reasoning)
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages={"role": "user", "content": prompt},
+                temperature=1.0,
+                max_tokens=60
+            )
+            rawScore = response.choices[0].message.content
+            cleanScore = re.search(r'\d+(\.\d+)?', rawScore)
+            if cleanScore:
+                reward = float(cleanScore.group(1))
+            else:
+                reward = 0.0
+        except Exception as e:
+            logger.info(f'Error generating reward: {str(e)}')
+            reward = 0.0
+        rewards.append(reward)
+    
     return rewards
